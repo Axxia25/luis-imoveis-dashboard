@@ -35,36 +35,64 @@ SCOPES = [
 def get_data_from_sheets():
     """Carrega dados da planilha Google"""
     try:
-        # Configurar credenciais - formato original TOML
+        st.write("🔍 **Debug - Iniciando carregamento dos dados...**")
+        
+        # Verificar se secrets existem
+        if 'GOOGLE_CREDENTIALS' not in st.secrets:
+            st.error("❌ GOOGLE_CREDENTIALS não encontrado nos secrets!")
+            st.write("**Secrets disponíveis:**", list(st.secrets.keys()))
+            return pd.DataFrame()
+        
+        st.write("✅ Credenciais encontradas nos secrets")
+        
+        # Configurar credenciais
         creds_dict = dict(st.secrets['GOOGLE_CREDENTIALS'])
+        st.write(f"✅ Credenciais carregadas - Projeto: {creds_dict.get('project_id', 'N/A')}")
         
         # Criar credenciais e cliente
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
+        st.write("✅ Cliente Google autorizado")
+        
+        # Abrir planilha
         sheet = client.open_by_key(PLANILHA_ID)
+        st.write(f"✅ Planilha aberta: {sheet.title}")
         
         # Busca por abas existentes
         worksheet_names = ['Leads_Todos_Imoveis', 'Leads_Lancamentos', 'Sheet1']
         worksheet = None
         
+        # Listar todas as abas disponíveis
+        available_sheets = [ws.title for ws in sheet.worksheets()]
+        st.write(f"📊 **Abas disponíveis na planilha:** {available_sheets}")
+        
         for name in worksheet_names:
             try:
                 worksheet = sheet.worksheet(name)
+                st.write(f"✅ Conectado à aba: **{name}**")
                 break
-            except:
+            except Exception as e:
+                st.write(f"⚠️ Aba '{name}' não encontrada: {e}")
                 continue
         
         if not worksheet:
             st.error("❌ Nenhuma aba encontrada na planilha")
+            st.write("**Tente uma das abas disponíveis:** ", available_sheets)
             return pd.DataFrame()
         
         # Carrega dados
+        st.write("📥 Carregando dados da planilha...")
         data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
+        st.write(f"📊 **{len(data)} registros encontrados na planilha**")
         
-        if df.empty:
+        if not data:
             st.warning("⚠️ Planilha encontrada, mas sem dados")
-            return df
+            st.write("**Cabeçalhos da planilha:**", worksheet.row_values(1))
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(data)
+        st.write(f"✅ DataFrame criado com {len(df)} linhas e {len(df.columns)} colunas")
+        st.write("**Colunas:** ", list(df.columns))
         
         # Processamento dos dados
         df['Data/Hora'] = pd.to_datetime(df['Data/Hora'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
@@ -74,10 +102,22 @@ def get_data_from_sheets():
         if 'Tipo Imóvel' not in df.columns or df['Tipo Imóvel'].isna().all():
             df['Tipo Imóvel'] = df['Imóvel/Referência'].apply(identify_property_type)
         
+        st.write("✅ **Dados processados com sucesso!**")
+        
+        # Mostrar primeiras linhas para debug
+        st.write("**Primeiras 3 linhas dos dados:**")
+        st.dataframe(df.head(3))
+        
         return df
         
     except Exception as e:
-        st.error(f"❌ Erro ao carregar dados: {e}")
+        st.error(f"❌ **Erro crítico ao carregar dados:** {e}")
+        st.write(f"**Tipo do erro:** {type(e).__name__}")
+        
+        # Debug adicional
+        import traceback
+        st.code(traceback.format_exc())
+        
         return pd.DataFrame()
 
 def identify_property_type(reference):
