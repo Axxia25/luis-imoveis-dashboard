@@ -35,14 +35,11 @@ SCOPES = [
 def get_data_from_sheets():
     """Carrega dados da planilha Google"""
     try:
-        # Usar JSON direto das secrets
-        creds_json = json.loads(st.secrets['GOOGLE_CREDENTIALS_JSON'])
-        
-        # Converter \n em quebras reais na private_key
-        creds_json['private_key'] = creds_json['private_key'].replace('\\n', '\n')
+        # Configurar credenciais - formato original TOML
+        creds_dict = dict(st.secrets['GOOGLE_CREDENTIALS'])
         
         # Criar credenciais e cliente
-        creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
         sheet = client.open_by_key(PLANILHA_ID)
         
@@ -53,7 +50,6 @@ def get_data_from_sheets():
         for name in worksheet_names:
             try:
                 worksheet = sheet.worksheet(name)
-                st.success(f"✅ Conectado à aba: {name}")
                 break
             except:
                 continue
@@ -78,15 +74,10 @@ def get_data_from_sheets():
         if 'Tipo Imóvel' not in df.columns or df['Tipo Imóvel'].isna().all():
             df['Tipo Imóvel'] = df['Imóvel/Referência'].apply(identify_property_type)
         
-        st.success(f"✅ Dados carregados: {len(df)} leads encontrados")
         return df
         
-    except json.JSONDecodeError as e:
-        st.error(f"❌ Erro ao decodificar JSON das credenciais: {e}")
-        return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {e}")
-        st.error(f"Tipo do erro: {type(e).__name__}")
         return pd.DataFrame()
 
 def identify_property_type(reference):
