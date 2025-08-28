@@ -35,20 +35,14 @@ SCOPES = [
 def get_data_from_sheets():
     """Carrega dados da planilha Google"""
     try:
-        # Conversão correta das credenciais
-        creds_dict = {}
-        for key in st.secrets['GOOGLE_CREDENTIALS']:
-            value = st.secrets['GOOGLE_CREDENTIALS'][key]
-            
-            # CORREÇÃO: Converter \n literais em quebras de linha reais
-            if key == "private_key":
-                # Substitui \\n por quebras de linha reais
-                value = value.replace('\\n', '\n')
-            
-            creds_dict[key] = value
+        # Usar JSON direto das secrets
+        creds_json = json.loads(st.secrets['GOOGLE_CREDENTIALS_JSON'])
+        
+        # Converter \n em quebras reais na private_key
+        creds_json['private_key'] = creds_json['private_key'].replace('\\n', '\n')
         
         # Criar credenciais e cliente
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
         client = gspread.authorize(creds)
         sheet = client.open_by_key(PLANILHA_ID)
         
@@ -87,14 +81,12 @@ def get_data_from_sheets():
         st.success(f"✅ Dados carregados: {len(df)} leads encontrados")
         return df
         
+    except json.JSONDecodeError as e:
+        st.error(f"❌ Erro ao decodificar JSON das credenciais: {e}")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {e}")
         st.error(f"Tipo do erro: {type(e).__name__}")
-        
-        # Debug adicional se ainda houver erro
-        if "private_key" in str(e).lower():
-            st.error("🔑 Problema específico com private_key - verifique a formatação no secrets.toml")
-        
         return pd.DataFrame()
 
 def identify_property_type(reference):
