@@ -31,25 +31,60 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ]
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300)  # Cache por 5 minutos
 def get_data_from_sheets():
     """Carrega dados da planilha Google"""
     try:
+        # Debug das credenciais
         st.write("Debugging secrets:")
         st.write("Type of secrets:", type(st.secrets['GOOGLE_CREDENTIALS']))
         st.write("Keys available:", list(st.secrets['GOOGLE_CREDENTIALS'].keys()) if hasattr(st.secrets['GOOGLE_CREDENTIALS'], 'keys') else 'No keys method')
         
-        # Conversão mais robusta
+        # Conversão mais robusta das credenciais
         creds_dict = {}
         for key in st.secrets['GOOGLE_CREDENTIALS']:
             creds_dict[key] = st.secrets['GOOGLE_CREDENTIALS'][key]
         
+        # Criar credenciais e cliente
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
         sheet = client.open_by_key(PLANILHA_ID)
-        else:
-            # Para desenvolvimento local
-            creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+        
+        # Busca por abas existentes
+        worksheet_names = ['Leads_Todos_Imoveis', 'Leads_Lancamentos', 'Sheet1']
+        worksheet = None
+        
+        for name in worksheet_names:
+            try:
+                worksheet = sheet.worksheet(name)
+                break
+            except:
+                continue
+        
+        if not worksheet:
+            st.error("Nenhuma aba encontrada na planilha")
+            return pd.DataFrame()
+        
+        # Carrega dados
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        if df.empty:
+            return df
+        
+        # Processamento dos dados
+        df['Data/Hora'] = pd.to_datetime(df['Data/Hora'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+        df['Interesse_Bool'] = df['Interesse Visita'].str.lower().isin(['true', 'sim', 'yes'])
+        
+        # Identifica tipo do imóvel se não existe a coluna
+        if 'Tipo Imóvel' not in df.columns or df['Tipo Imóvel'].isna().all():
+            df['Tipo Imóvel'] = df['Imóvel/Referência'].apply(identify_property_type)
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return pd.DataFrame()
         
         client = gspread.authorize(creds)
         sheet = client.open_by_key(PLANILHA_ID)
