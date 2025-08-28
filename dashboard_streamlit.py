@@ -37,8 +37,16 @@ def get_data_from_sheets():
     try:
         # Configurar credenciais
         if 'GOOGLE_CREDENTIALS' in st.secrets:
-            creds_json = dict(st.secrets['GOOGLE_CREDENTIALS'])
-            creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
+            # Tenta usar como dicionário diretamente
+            try:
+                creds_json = dict(st.secrets['GOOGLE_CREDENTIALS'])
+                creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
+            except Exception as e:
+                st.error(f"Erro ao processar credenciais: {e}")
+                # Tenta como string JSON
+                import json
+                creds_json = json.loads(str(st.secrets['GOOGLE_CREDENTIALS']))
+                creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
         else:
             # Para desenvolvimento local
             creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
