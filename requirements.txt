@@ -1,6 +1,6 @@
-streamlit==1.26.0
-pandas==2.0.3
-plotly==5.17.0
-gspread==5.10.0
-google-auth==2.23.0
-pytz==2023.3
+streamlit==1.35.0
+pandas==2.1.0
+plotly==5.19.0
+gspread==6.0.0
+google-auth==2.29.0
+pytz==2024.1
