@@ -31,22 +31,22 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ]
 
-@st.cache_data(ttl=300)  # Cache por 5 minutos
+@st.cache_data(ttl=300)
 def get_data_from_sheets():
     """Carrega dados da planilha Google"""
     try:
-        # Configurar credenciais
-        if 'GOOGLE_CREDENTIALS' in st.secrets:
-            # Tenta usar como dicionário diretamente
-            try:
-                creds_json = dict(st.secrets['GOOGLE_CREDENTIALS'])
-                creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
-            except Exception as e:
-                st.error(f"Erro ao processar credenciais: {e}")
-                # Tenta como string JSON
-                import json
-                creds_json = json.loads(str(st.secrets['GOOGLE_CREDENTIALS']))
-                creds = Credentials.from_service_account_info(creds_json, scopes=SCOPES)
+        st.write("Debugging secrets:")
+        st.write("Type of secrets:", type(st.secrets['GOOGLE_CREDENTIALS']))
+        st.write("Keys available:", list(st.secrets['GOOGLE_CREDENTIALS'].keys()) if hasattr(st.secrets['GOOGLE_CREDENTIALS'], 'keys') else 'No keys method')
+        
+        # Conversão mais robusta
+        creds_dict = {}
+        for key in st.secrets['GOOGLE_CREDENTIALS']:
+            creds_dict[key] = st.secrets['GOOGLE_CREDENTIALS'][key]
+        
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(PLANILHA_ID)
         else:
             # Para desenvolvimento local
             creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
