@@ -81,28 +81,89 @@ def get_data_from_sheets():
         max_cols = len(headers)
         processed_rows = []
         
-        for row in data_rows:
+        for row_idx, row in enumerate(data_rows):
             # Preencher colunas faltantes com string vazia
             while len(row) < max_cols:
                 row.append('')
             # Truncar se houver colunas extras
             row = row[:max_cols]
+            
+            # CORREÇÃO ESPECÍFICA: Detectar e corrigir dados misturados na linha
+            if len(row) > 1:  # Verificar se há pelo menos 2 colunas
+                data_hora_col = row[0] if len(row) > 0 else ''
+                nome_col = row[1] if len(row) > 1 else ''
+                
+                # Detectar se há nome misturado na coluna de data
+                if data_hora_col and any(name in str(data_hora_col) for name in ['João', 'Maria', 'Guilherme', 'Teste']):
+                    # Tentar extrair nome da coluna de data
+                    import re
+                    
+                    # Extrair nomes comuns da string de data
+                    names_found = re.findall(r'\b(João|Maria|Guilherme|Teste Sistema|Teste)\b', str(data_hora_col))
+                    if names_found and not nome_col.strip():
+                        # Se nome estava vazio, usar o nome encontrado na data
+                        row[1] = names_found[0]
+                        
+                    # Tentar extrair apenas a parte da data
+                    date_match = re.search(r'(\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', str(data_hora_col))
+                    if date_match:
+                        row[0] = date_match.group(1)
+            
             processed_rows.append(row)
         
         df = pd.DataFrame(processed_rows, columns=headers)
         
-        # Remover linhas onde todas as colunas essenciais estão vazias
-        essential_cols = ['Data/Hora', 'Nome', 'Telefone']
-        mask = df[essential_cols].apply(lambda x: x.str.strip() if x.dtype == 'object' else x, axis=0)
-        mask = mask.apply(lambda row: any(row != ''), axis=1)
-        df = df[mask]
+        # Remover apenas linhas completamente vazias (mais flexível)
+        # Uma linha é válida se tiver pelo menos Nome OU Telefone preenchido
+        nome_valido = df['Nome'].astype(str).str.strip() != ''
+        telefone_valido = df['Telefone'].astype(str).str.strip() != ''
+        df = df[nome_valido | telefone_valido]
         
         if df.empty:
             st.warning("Nenhum dado válido encontrado após limpeza")
             return df
         
-        # Processamento dos dados
-        df['Data/Hora'] = pd.to_datetime(df['Data/Hora'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+        # Limpeza e processamento da data (mais robusta)
+        def clean_datetime(date_str):
+            """Limpa e converte strings de data malformadas"""
+            if pd.isna(date_str) or date_str == '':
+                return pd.NaT
+                
+            date_str = str(date_str).strip()
+            
+            # Se contém "João" ou outros nomes, extrair apenas a parte da data
+            if any(name in date_str for name in ['João', 'Maria', 'Guilherme']):
+                # Tentar extrair data no formato ISO do início
+                import re
+                iso_match = re.match(r'(\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', date_str)
+                if iso_match:
+                    try:
+                        # Converter formato YY-MM-DD para DD/MM/YYYY
+                        iso_date = iso_match.group(1)
+                        parts = iso_date.split('T')
+                        date_part = parts[0]  # YY-MM-DD
+                        time_part = parts[1]  # HH:MM:SS
+                        
+                        year, month, day = date_part.split('-')
+                        # Assumir que YY é 20YY
+                        year = '20' + year if len(year) == 2 else year
+                        
+                        return pd.to_datetime(f"{day}/{month}/{year} {time_part}", 
+                                            format='%d/%m/%Y %H:%M:%S', errors='coerce')
+                    except:
+                        pass
+            
+            # Tentar formato padrão brasileiro
+            try:
+                return pd.to_datetime(date_str, format='%d/%m/%Y %H:%M:%S', errors='coerce')
+            except:
+                # Tentar outros formatos comuns
+                try:
+                    return pd.to_datetime(date_str, errors='coerce')
+                except:
+                    return pd.NaT
+        
+        df['Data/Hora'] = df['Data/Hora'].apply(clean_datetime)
         
         # Tratar coluna de interesse (pode vir como TRUE/sim/true/yes)
         if 'Interesse Visita' in df.columns:
