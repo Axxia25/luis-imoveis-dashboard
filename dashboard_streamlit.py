@@ -261,12 +261,19 @@ def create_interest_analysis(df):
         lambda x: '🔥 Excelente' if x >= 80 else '👍 Boa' if x >= 60 else '⚠️ Regular' if x >= 40 else '🔴 Baixa'
     )
     
-    st.dataframe(
-        interesse_por_tipo.style.format({
+    # Tentar usar background_gradient se matplotlib estiver disponível
+    try:
+        import matplotlib
+        styled_df = interesse_por_tipo.style.format({
             'Taxa_Interesse': '{:.1f}%'
-        }).background_gradient(subset=['Taxa_Interesse'], cmap='RdYlGn'),
-        use_container_width=True
-    )
+        }).background_gradient(subset=['Taxa_Interesse'], cmap='RdYlGn')
+        st.dataframe(styled_df, use_container_width=True)
+    except ImportError:
+        # Fallback sem background_gradient
+        styled_df = interesse_por_tipo.style.format({
+            'Taxa_Interesse': '{:.1f}%'
+        })
+        st.dataframe(styled_df, use_container_width=True)
 
 def create_timeline_chart(df):
     """Gráfico de evolução temporal - MELHORADO"""
